@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>除夕快乐</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(to bottom, #0a0a1a 0%, #1a1a3a 100%);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            animation: fadeIn 2s ease-in;
+        }
+
+        .title {
+            font-size: 4rem;
+            color: #ff6b6b;
+            text-shadow: 0 0 20px #ff6b6b, 0 0 40px #ff6b6b, 0 0 60px #ff6b6b;
+            margin-bottom: 20px;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            color: #ffd93d;
+            text-shadow: 0 0 10px #ffd93d;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes glow {
+            from {
+                text-shadow: 0 0 20px #ff6b6b, 0 0 40px #ff6b6b;
+            }
+            to {
+                text-shadow: 0 0 30px #ff6b6b, 0 0 60px #ff6b6b, 0 0 90px #ff6b6b;
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .blessing {
+            position: fixed;
+            font-size: 1.8rem;
+            font-weight: bold;
+            text-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
+            z-index: 3;
+            pointer-events: none;
+            white-space: nowrap;
+            opacity: 0;
+            transform: scale(0) rotate(-10deg);
+        }
+
+        .blessing.show {
+            animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards,
+                       blessingFloat 3s ease-in-out infinite 0.5s;
+        }
+
+        @keyframes popIn {
+            0% {
+                opacity: 0;
+                transform: scale(0) rotate(-10deg);
+            }
+            50% {
+                transform: scale(1.2) rotate(5deg);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1) rotate(0deg);
+            }
+        }
+
+        @keyframes blessingFloat {
+            0%, 100% {
+                transform: translateY(0) scale(1);
+            }
+            50% {
+                transform: translateY(-10px) scale(1.05);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .title {
+                font-size: 2.5rem;
+            }
+            .subtitle {
+                font-size: 1rem;
+            }
+            .blessing {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="content">
+        <h1 class="title">除夕快乐</h1>
+        <p class="subtitle">🎆 新年快乐 万事如意 🎆</p>
+        <p class="subtitle">祝你</p>
+    </div>
+    <div id="blessings-container"></div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const fireworks = [];
+        const particles = [];
+
+        // 祝福语数组
+        const blessings = [
+            "龙马精神", "马到成功", "鲜衣怒马", "一马当先", "策马扬鞭",
+            "除夕大吉", "辞旧迎新", "同窗情深", "友谊长存", "青春不散",
+            "学业有成", "逢考必过", "金榜题名", "独占鳌头", "名列前茅",
+            "前程似锦", "鹏程万里", "大展宏图", "步步高升", "事业有成",
+            "升职加薪", "蒸蒸日上", "风生水起", "财源广进", "日进斗金",
+            "万事胜意", "诸事顺遂", "平安喜乐", "喜乐无忧", "大吉大利",
+            "未来可期", "顺风顺水", "好运连连", "笑口常开", "岁岁平安",
+            "年年有余", "把酒言欢", "并肩同行", "默契如初", "岁月情长",
+            "才思泉涌", "厚积薄发", "飞黄腾达", "一日千里", "意气风发",
+            "神采飞扬", "福暖四季", "吉星高照", "万事顺遂", "马年大吉"
+        ];
+
+        // 祝福语颜色数组
+        const blessingColors = [
+            '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff9ff3',
+            '#feca57', '#ff6b81', '#7bed9f', '#70a1ff', '#eccc68',
+            '#ff7f50', '#00d2d3', '#ff6b6b', '#54a0ff', '#5f27cd'
+        ];
+
+        // 持续添加祝福语直到铺满屏幕
+        let blessInterval = null;
+        let blessingCount = 0;
+        const maxBlessings = 200; // 最大祝福语数量
+
+        function showBlessings() {
+            const container = document.getElementById('blessings-container');
+            blessingCount = 0;
+            
+            // 清除之前的定时器
+            if (blessInterval) {
+                clearInterval(blessInterval);
+            }
+            
+            const delayBetweenBlessings = 100; // 每秒10个
+            
+            // 持续添加祝福语
+            blessInterval = setInterval(() => {
+                if (blessingCount < maxBlessings) {
+                    const blessing = document.createElement('div');
+                    blessing.className = 'blessing';
+                    // 依次使用祝福语数组中的词，循环使用
+                    blessing.textContent = blessings[blessingCount % blessings.length];
+                    
+                    // 随机颜色
+                    const color = blessingColors[Math.floor(Math.random() * blessingColors.length)];
+                    blessing.style.color = color;
+                    
+                    // 随机位置
+                    const x = Math.random() * (window.innerWidth - 150);
+                    const y = Math.random() * (window.innerHeight - 80);
+                    
+                    blessing.style.left = x + 'px';
+                    blessing.style.top = y + 'px';
+                    
+                    container.appendChild(blessing);
+                    
+                    // 立即显示动画
+                    setTimeout(() => {
+                        blessing.classList.add('show');
+                    }, 10);
+                    
+                    blessingCount++;
+                } else {
+                    clearInterval(blessInterval);
+                    // 铺满后保持动态画面
+                }
+            }, delayBetweenBlessings);
+        }
+
+        function random(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+
+        class Firework {
+            constructor() {
+                this.x = random(0, canvas.width);
+                this.y = canvas.height;
+                this.targetY = random(canvas.height * 0.1, canvas.height * 0.4);
+                this.speed = random(3, 6);
+                this.radius = 3;
+                this.color = `hsl(${random(0, 360)}, 100%, 50%)`;
+                this.trail = [];
+            }
+
+            update() {
+                this.trail.push({ x: this.x, y: this.y });
+                if (this.trail.length > 10) {
+                    this.trail.shift();
+                }
+
+                this.y -= this.speed;
+
+                if (this.y <= this.targetY) {
+                    this.explode();
+                    return false;
+                }
+                return true;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+
+                this.trail.forEach((point, index) => {
+                    ctx.beginPath();
+                    ctx.arc(point.x, point.y, this.radius * (index / this.trail.length), 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.globalAlpha = index / this.trail.length * 0.5;
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+                });
+            }
+
+            explode() {
+                const particleCount = 150;
+                for (let i = 0; i < particleCount; i++) {
+                    particles.push(new Particle(this.x, this.y, this.color));
+                }
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.velocity = {
+                    x: random(-5, 5),
+                    y: random(-5, 5)
+                };
+                this.alpha = 1;
+                this.decay = random(0.015, 0.03);
+                this.gravity = 0.05;
+            }
+
+            update() {
+                this.velocity.y += this.gravity;
+                this.x += this.velocity.x;
+                this.y += this.velocity.y;
+                this.alpha -= this.decay;
+
+                return this.alpha > 0;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function createFirework() {
+            fireworks.push(new Firework());
+        }
+
+        function animate() {
+            ctx.fillStyle = 'rgba(10, 10, 26, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (Math.random() < 0.1) {
+                createFirework();
+            }
+
+            for (let i = fireworks.length - 1; i >= 0; i--) {
+                if (!fireworks[i].update()) {
+                    fireworks.splice(i, 1);
+                } else {
+                    fireworks[i].draw();
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                if (!particles[i].update()) {
+                    particles.splice(i, 1);
+                } else {
+                    particles[i].draw();
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        showBlessings();
+        animate();
+    </script>
+</body>
+</html>
